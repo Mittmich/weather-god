@@ -6,6 +6,7 @@ const PRECIP_COLOR_MEDIUM = "#7dd3fc";
 const PRECIP_COLOR_LOW = "#64748b";
 
 const WEATHER_API = "https://api.open-meteo.com/v1/forecast";
+const ENSEMBLE_API = "https://ensemble-api.open-meteo.com/v1/ensemble";
 const GEOCODE_API = "https://geocoding-api.open-meteo.com/v1/search";
 
 const form = document.getElementById("weather-form");
@@ -109,6 +110,36 @@ async function resolveLocation(query, fallbackValue) {
   const first = items[0];
   const parts = [first.name, first.admin1, first.country].filter(Boolean);
   return { latitude: first.latitude, longitude: first.longitude, name: parts.join(", ") };
+}
+
+// ---------------------------------------------------------------------------
+// Ensemble helpers
+// ---------------------------------------------------------------------------
+
+function computePercentile(sorted, p) {
+  if (!sorted.length) return null;
+  const idx = (p / 100) * (sorted.length - 1);
+  const lo = Math.floor(idx);
+  const hi = Math.ceil(idx);
+  return lo === hi ? sorted[lo] : sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo);
+}
+
+// Returns { low: [...], high: [...] } where each entry is the 2.5th / 97.5th
+// percentile across all ensemble members at that time step.
+function extractEnsembleBands(ensembleHourly, variable) {
+  const memberKeys = Object.keys(ensembleHourly).filter((k) => k.startsWith(variable + "_member"));
+  if (!memberKeys.length) return null;
+  const n = ensembleHourly[memberKeys[0]].length;
+  const low = [], high = [];
+  for (let i = 0; i < n; i++) {
+    const vals = memberKeys
+      .map((k) => ensembleHourly[k][i])
+      .filter(Number.isFinite)
+      .sort((a, b) => a - b);
+    low.push(vals.length ? computePercentile(vals, 2.5) : null);
+    high.push(vals.length ? computePercentile(vals, 97.5) : null);
+  }
+  return { low, high };
 }
 
 // ---------------------------------------------------------------------------
@@ -218,7 +249,7 @@ function makeSVGChart({ labels, mainSeries, bandSeries, barSeries, unit, title, 
 // Hourly charts
 // ---------------------------------------------------------------------------
 
-function renderHourlyCharts(hourly, dateStr) {
+function renderHourlyCharts(hourly, dateStr, ensembleHourly = null) {
   const indices = [];
   hourly.time.forEach((t, i) => { if (t.startsWith(dateStr)) indices.push(i); });
   if (!indices.length) return;
@@ -235,6 +266,22 @@ function renderHourlyCharts(hourly, dateStr) {
   const wind = get("wind_speed_10m");
   const gusts = get("wind_gusts_10m");
 
+  // Map ensemble bands to the same day's indices using the ensemble time array.
+  const ensembleBandFor = (bands) => {
+    if (!bands?.low?.length || !ensembleHourly?.time) return null;
+    const ensIdx = [];
+    ensembleHourly.time.forEach((t, i) => { if (t.startsWith(dateStr)) ensIdx.push(i); });
+    if (!ensIdx.length) return null;
+    return {
+      low: ensIdx.map((i) => bands.low[i]),
+      high: ensIdx.map((i) => bands.high[i]),
+    };
+  };
+
+  const tempBand = ensembleBandFor(ensembleHourly?.temperature);
+  const precipBand = ensembleBandFor(ensembleHourly?.precipitation);
+  const windBand = ensembleBandFor(ensembleHourly?.wind);
+
   const container = document.getElementById("hourly-charts");
   container.innerHTML = "";
 
@@ -247,32 +294,40 @@ function renderHourlyCharts(hourly, dateStr) {
 
   addChart(makeSVGChart({
     labels: hours,
-    mainSeries: { values: temp.map((t, i) => (t + apparent[i]) / 2), color: "#fb923c" },
-    bandSeries: {
-      low: temp.map((t, i) => Math.min(t, apparent[i])),
-      high: temp.map((t, i) => Math.max(t, apparent[i])),
-      color: "#fb923c",
-    },
+    mainSeries: { values: temp, color: "#fb923c" },
+    bandSeries: tempBand
+      ? { ...tempBand, color: "#fb923c" }
+      : { low: temp.map((t, i) => Math.min(t, apparent[i])), high: temp.map((t, i) => Math.max(t, apparent[i])), color: "#fb923c" },
     unit: "°C",
-    title: "Temperature °C  (line = mean of actual & apparent, band = full range)",
+    title: tempBand
+      ? "Temperature °C  (line = forecast, band = 2.5th–97.5th percentile ensemble)"
+      : "Temperature °C  (line = actual, band = actual–apparent range)",
   }));
 
   addChart(makeSVGChart({
     labels: hours,
     barSeries: { values: precip, probabilities: precipProb, color: "#38bdf8" },
     mainSeries: { values: precip.map((p, i) => p * ((precipProb[i] ?? 100) / 100)), color: "#38bdf8" },
-    bandSeries: { low: precip.map(() => 0), high: precip, color: "#38bdf8" },
+    bandSeries: precipBand
+      ? { ...precipBand, color: "#38bdf8" }
+      : { low: precip.map(() => 0), high: precip, color: "#38bdf8" },
     unit: "mm",
-    title: "Precipitation mm  (line = expected value, band = confidence interval, bar opacity = probability %)",
+    title: precipBand
+      ? "Precipitation mm  (line = expected value, band = 2.5th–97.5th percentile ensemble)"
+      : "Precipitation mm  (line = expected value, band = confidence interval, bar opacity = probability %)",
     zeroBaseline: true,
   }));
 
   addChart(makeSVGChart({
     labels: hours,
-    mainSeries: { values: wind.map((w, i) => (w + gusts[i]) / 2), color: "#a78bfa" },
-    bandSeries: { low: wind, high: gusts, color: "#a78bfa" },
+    mainSeries: { values: wind, color: "#a78bfa" },
+    bandSeries: windBand
+      ? { ...windBand, color: "#a78bfa" }
+      : { low: wind, high: gusts, color: "#a78bfa" },
     unit: "km/h",
-    title: "Wind km/h  (line = midpoint of speed & gust, band = speed–gust range)",
+    title: windBand
+      ? "Wind km/h  (line = forecast speed, band = 2.5th–97.5th percentile ensemble)"
+      : "Wind km/h  (line = midpoint of speed & gust, band = speed–gust range)",
   }));
 }
 
@@ -280,7 +335,7 @@ function renderHourlyCharts(hourly, dateStr) {
 // Day selector for hourly view
 // ---------------------------------------------------------------------------
 
-function buildDaySelector(daily, hourly) {
+function buildDaySelector(daily, hourly, ensembleHourly) {
   const container = document.getElementById("day-selector");
   container.innerHTML = "";
   daily.time.forEach((dateStr, idx) => {
@@ -291,7 +346,7 @@ function buildDaySelector(daily, hourly) {
     btn.addEventListener("click", () => {
       container.querySelectorAll(".day-btn").forEach((b) => b.classList.remove("active"));
       btn.classList.add("active");
-      renderHourlyCharts(hourly, dateStr);
+      renderHourlyCharts(hourly, dateStr, ensembleHourly);
     });
     container.appendChild(btn);
   });
@@ -380,9 +435,36 @@ async function loadWeather(event) {
       params.set("elevation", String(altitude));
     }
 
-    const response = await fetch(`${WEATHER_API}?${params.toString()}`);
+    const ensParams = new URLSearchParams({
+      latitude: String(location.latitude),
+      longitude: String(location.longitude),
+      hourly: "temperature_2m,precipitation,wind_speed_10m",
+      timezone: "auto",
+      forecast_days: "7",
+    });
+
+    if (Number.isFinite(altitude)) {
+      ensParams.set("elevation", String(altitude));
+    }
+
+    const [response, ensResponse] = await Promise.all([
+      fetch(`${WEATHER_API}?${params.toString()}`),
+      fetch(`${ENSEMBLE_API}?${ensParams.toString()}`),
+    ]);
     if (!response.ok) throw new Error("Weather service is unavailable");
     const weather = await response.json();
+
+    let ensembleHourly = null;
+    if (ensResponse.ok) {
+      const ensData = await ensResponse.json();
+      const eh = ensData.hourly;
+      ensembleHourly = {
+        time: eh.time,
+        temperature: extractEnsembleBands(eh, "temperature_2m"),
+        precipitation: extractEnsembleBands(eh, "precipitation"),
+        wind: extractEnsembleBands(eh, "wind_speed_10m"),
+      };
+    }
 
     const current = weather.current;
     const daily = weather.daily;
@@ -409,16 +491,52 @@ async function loadWeather(event) {
 
     const tempSpread = (daily.temperature_2m_max[0] - daily.temperature_2m_min[0]).toFixed(1);
     const windSpread = (daily.wind_gusts_10m_max[0] - current.wind_speed_10m).toFixed(1);
-    document.getElementById("uncertainty-temp").textContent = `${tempSpread} °C spread`;
-    document.getElementById("uncertainty-precip").textContent =
-      `${daily.precipitation_probability_max?.[0] ?? "N/A"}% chance of measurable precipitation`;
-    document.getElementById("uncertainty-wind").textContent = `${windSpread} km/h possible change to gust peak`;
+
+    if (ensembleHourly) {
+      const todayStr = daily.time[0];
+      const ensIdx = ensembleHourly.time
+        .map((t, i) => (t.startsWith(todayStr) ? i : -1))
+        .filter((i) => i >= 0);
+
+      if (ensIdx.length && ensembleHourly.temperature) {
+        const p2_5 = Math.min(...ensIdx.map((i) => ensembleHourly.temperature.low[i]).filter(Number.isFinite));
+        const p97_5 = Math.max(...ensIdx.map((i) => ensembleHourly.temperature.high[i]).filter(Number.isFinite));
+        document.getElementById("uncertainty-temp").textContent =
+          `${p2_5.toFixed(1)}–${p97_5.toFixed(1)} °C (2.5th–97.5th percentile)`;
+      } else {
+        document.getElementById("uncertainty-temp").textContent = `${tempSpread} °C spread (daily min/max)`;
+      }
+
+      if (ensIdx.length && ensembleHourly.precipitation) {
+        const p2_5 = Math.min(...ensIdx.map((i) => ensembleHourly.precipitation.low[i]).filter(Number.isFinite));
+        const p97_5 = Math.max(...ensIdx.map((i) => ensembleHourly.precipitation.high[i]).filter(Number.isFinite));
+        document.getElementById("uncertainty-precip").textContent =
+          `${p2_5.toFixed(1)}–${p97_5.toFixed(1)} mm (2.5th–97.5th percentile)`;
+      } else {
+        document.getElementById("uncertainty-precip").textContent =
+          `${daily.precipitation_probability_max?.[0] ?? "N/A"}% chance of measurable precipitation`;
+      }
+
+      if (ensIdx.length && ensembleHourly.wind) {
+        const p2_5 = Math.min(...ensIdx.map((i) => ensembleHourly.wind.low[i]).filter(Number.isFinite));
+        const p97_5 = Math.max(...ensIdx.map((i) => ensembleHourly.wind.high[i]).filter(Number.isFinite));
+        document.getElementById("uncertainty-wind").textContent =
+          `${p2_5.toFixed(1)}–${p97_5.toFixed(1)} km/h (2.5th–97.5th percentile)`;
+      } else {
+        document.getElementById("uncertainty-wind").textContent = `${windSpread} km/h possible change to gust peak`;
+      }
+    } else {
+      document.getElementById("uncertainty-temp").textContent = `${tempSpread} °C spread (daily min/max)`;
+      document.getElementById("uncertainty-precip").textContent =
+        `${daily.precipitation_probability_max?.[0] ?? "N/A"}% chance of measurable precipitation`;
+      document.getElementById("uncertainty-wind").textContent = `${windSpread} km/h possible change to gust peak`;
+    }
 
     setStatus("Weather loaded.");
     results.hidden = false;
 
-    buildDaySelector(daily, hourly);
-    renderHourlyCharts(hourly, daily.time[0]);
+    buildDaySelector(daily, hourly, ensembleHourly);
+    renderHourlyCharts(hourly, daily.time[0], ensembleHourly);
     renderForecast(daily);
   } catch (error) {
     setStatus(error instanceof Error ? error.message : "Unexpected weather loading error", true);
