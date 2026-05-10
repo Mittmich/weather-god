@@ -223,7 +223,10 @@ function renderHourlyCharts(hourly, dateStr) {
   hourly.time.forEach((t, i) => { if (t.startsWith(dateStr)) indices.push(i); });
   if (!indices.length) return;
 
-  const get = (key) => indices.map((i) => hourly[key][i]);
+  const get = (key) => {
+    const arr = hourly[key];
+    return indices.map((i) => (arr != null ? arr[i] : null));
+  };
   const hours = get("time").map((t) => t.slice(11, 16));
   const temp = get("temperature_2m");
   const apparent = get("apparent_temperature");
@@ -302,22 +305,25 @@ function renderForecast(daily) {
 
   const tMins = daily.temperature_2m_min;
   const tMaxs = daily.temperature_2m_max;
-  const absMin = Math.min(...tMins);
-  const absMax = Math.max(...tMaxs);
+  const validMins = tMins.filter((v) => v != null);
+  const validMaxs = tMaxs.filter((v) => v != null);
+  const absMin = validMins.length ? Math.min(...validMins) : 0;
+  const absMax = validMaxs.length ? Math.max(...validMaxs) : 1;
   const absRange = absMax - absMin || 1;
 
   daily.time.forEach((dateStr, i) => {
     const tmin = tMins[i];
     const tmax = tMaxs[i];
     const precip = daily.precipitation_sum[i];
-    const precipProb = daily.precipitation_probability_max[i];
+    const precipProb = daily.precipitation_probability_max?.[i] ?? null;
     const windMax = daily.wind_speed_10m_max[i];
     const gustMax = daily.wind_gusts_10m_max[i];
     const sunrise = toTime(daily.sunrise[i]);
     const sunset = toTime(daily.sunset[i]);
 
-    const barLeft = ((tmin - absMin) / absRange * 100).toFixed(1);
-    const barWidth = ((tmax - tmin) / absRange * 100).toFixed(1);
+    const barLeft = (tmin != null ? (tmin - absMin) / absRange * 100 : 0).toFixed(1);
+    const barWidth = (tmin != null && tmax != null ? (tmax - tmin) / absRange * 100 : 0).toFixed(1);
+    const precipProbDisplay = precipProb != null ? `${precipProb}%` : "N/A";
     const probColor = precipProb >= PRECIP_PROB_HIGH ? PRECIP_COLOR_HIGH : precipProb >= PRECIP_PROB_MEDIUM ? PRECIP_COLOR_MEDIUM : PRECIP_COLOR_LOW;
 
     const card = document.createElement("article");
@@ -325,15 +331,15 @@ function renderForecast(daily) {
     card.innerHTML = `
       <div class="fc-date">${formatDate(dateStr)}</div>
       <div class="fc-temp">
-        <span class="fc-tmin">${tmin.toFixed(1)}°</span>
-        <div class="fc-bar-track" title="Daily temperature range: ${tmin.toFixed(1)}° – ${tmax.toFixed(1)}°C">
+        <span class="fc-tmin">${tmin != null ? tmin.toFixed(1) : "—"}°</span>
+        <div class="fc-bar-track" title="Daily temperature range: ${tmin != null ? tmin.toFixed(1) : "—"}° – ${tmax != null ? tmax.toFixed(1) : "—"}°C">
           <div class="fc-bar" style="left:${barLeft}%;width:${barWidth}%"></div>
         </div>
-        <span class="fc-tmax">${tmax.toFixed(1)}°</span>
+        <span class="fc-tmax">${tmax != null ? tmax.toFixed(1) : "—"}°</span>
       </div>
       <div class="fc-details">
-        <span class="fc-precip" style="color:${probColor}">🌧 ${precip.toFixed(1)} mm <span class="fc-ci">${precipProb}%</span></span>
-        <span class="fc-wind">💨 ${windMax.toFixed(0)}–${gustMax.toFixed(0)} km/h</span>
+        <span class="fc-precip" style="color:${probColor}">🌧 ${precip != null ? precip.toFixed(1) : "N/A"} mm <span class="fc-ci">${precipProbDisplay}</span></span>
+        <span class="fc-wind">💨 ${windMax != null ? windMax.toFixed(0) : "N/A"}–${gustMax != null ? gustMax.toFixed(0) : "N/A"} km/h</span>
         <span class="fc-sun">🌅 ${sunrise}–${sunset}</span>
       </div>
     `;
@@ -389,7 +395,7 @@ async function loadWeather(event) {
 
     document.getElementById("precip-current").textContent = `${current.precipitation} mm`;
     document.getElementById("precip-total").textContent = `${daily.precipitation_sum[0]} mm`;
-    document.getElementById("precip-prob").textContent = `${daily.precipitation_probability_max[0]} %`;
+    document.getElementById("precip-prob").textContent = `${daily.precipitation_probability_max?.[0] ?? "N/A"} %`;
 
     document.getElementById("wind-speed").textContent = `${current.wind_speed_10m} km/h`;
     document.getElementById("wind-direction").textContent = `${current.wind_direction_10m}°`;
@@ -403,15 +409,15 @@ async function loadWeather(event) {
     const windSpread = (daily.wind_gusts_10m_max[0] - current.wind_speed_10m).toFixed(1);
     document.getElementById("uncertainty-temp").textContent = `${tempSpread} °C spread`;
     document.getElementById("uncertainty-precip").textContent =
-      `${daily.precipitation_probability_max[0]}% chance of measurable precipitation`;
+      `${daily.precipitation_probability_max?.[0] ?? "N/A"}% chance of measurable precipitation`;
     document.getElementById("uncertainty-wind").textContent = `${windSpread} km/h possible change to gust peak`;
+
+    setStatus("Weather loaded.");
+    results.hidden = false;
 
     buildDaySelector(daily, hourly);
     renderHourlyCharts(hourly, daily.time[0]);
     renderForecast(daily);
-
-    setStatus("Weather loaded.");
-    results.hidden = false;
   } catch (error) {
     setStatus(error instanceof Error ? error.message : "Unexpected weather loading error", true);
   }
