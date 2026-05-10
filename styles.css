@@ -1,0 +1,81 @@
+:root {
+  color-scheme: light dark;
+  font-family: Inter, system-ui, sans-serif;
+}
+
+body {
+  margin: 0;
+  background: #0f172a;
+  color: #e2e8f0;
+}
+
+.app {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+.subtitle {
+  margin-top: -0.5rem;
+  color: #94a3b8;
+}
+
+.controls {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.75rem;
+  align-items: end;
+  margin: 1rem 0;
+}
+
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.95rem;
+}
+
+input,
+select,
+button {
+  border-radius: 8px;
+  border: 1px solid #334155;
+  padding: 0.55rem 0.7rem;
+  background: #1e293b;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+  font-weight: 600;
+  background: #0ea5e9;
+  border-color: #0284c7;
+  color: #082f49;
+}
+
+.status {
+  min-height: 1.4rem;
+  color: #38bdf8;
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 0.85rem;
+}
+
+.card {
+  background: #111827;
+  border: 1px solid #334155;
+  border-radius: 10px;
+  padding: 0.8rem;
+}
+
+.card h3 {
+  margin-top: 0;
+}
+
+.uncertainty ul {
+  margin: 0;
+  padding-left: 1rem;
+}
