@@ -24,6 +24,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Inject cache-busting version
+        run: |
+          SHA=$(git rev-parse --short HEAD)
+          sed -i "s/\?v=2/\?v=$SHA/g" index.html
+
       - name: Configure Pages
         uses: actions/configure-pages@v5
         with:
