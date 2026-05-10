@@ -14,9 +14,85 @@ const statusNode = document.getElementById("status");
 const results = document.getElementById("results");
 const locationQueryInput = document.getElementById("location-query");
 const autocompleteList = document.getElementById("autocomplete-list");
+const saveFavBtn = document.getElementById("save-favourite-btn");
+const favouritesSection = document.getElementById("favourites-section");
+const favouritesList = document.getElementById("favourites-list");
 
 let selectedLocation = null;
 let debounceTimer = null;
+let currentLoadedLocation = null;
+let currentLoadedAltitude = 0;
+
+// ---------------------------------------------------------------------------
+// Favourites (localStorage)
+// ---------------------------------------------------------------------------
+
+const FAV_KEY = "weather-god-favourites";
+
+function getFavourites() {
+  try { return JSON.parse(localStorage.getItem(FAV_KEY)) ?? []; } catch (e) { console.error("Failed to read favourites:", e); return []; }
+}
+
+function saveFavourites(favs) {
+  localStorage.setItem(FAV_KEY, JSON.stringify(favs));
+}
+
+function addFavourite(location, altitude) {
+  const key = `${location.latitude},${location.longitude}`;
+  const favs = getFavourites().filter((f) => `${f.latitude},${f.longitude}` !== key);
+  favs.unshift({ name: location.name, latitude: location.latitude, longitude: location.longitude, altitude });
+  saveFavourites(favs);
+  renderFavourites();
+}
+
+function removeFavourite(latitude, longitude) {
+  const key = `${latitude},${longitude}`;
+  saveFavourites(getFavourites().filter((f) => `${f.latitude},${f.longitude}` !== key));
+  renderFavourites();
+}
+
+function renderFavourites() {
+  const favs = getFavourites();
+  favouritesList.innerHTML = "";
+  if (!favs.length) { favouritesSection.hidden = true; return; }
+  favouritesSection.hidden = false;
+  favs.forEach((fav) => {
+    const chip = document.createElement("span");
+    chip.className = "fav-chip";
+
+    const label = document.createElement("button");
+    label.type = "button";
+    label.className = "fav-chip-label";
+    label.textContent = fav.name;
+    label.addEventListener("click", () => {
+      selectedLocation = { latitude: fav.latitude, longitude: fav.longitude, name: fav.name };
+      locationQueryInput.value = fav.name;
+      document.getElementById("altitude").value = String(fav.altitude);
+      form.requestSubmit();
+    });
+
+    const del = document.createElement("button");
+    del.type = "button";
+    del.className = "fav-chip-del";
+    del.textContent = "×";
+    del.setAttribute("aria-label", `Remove ${fav.name} from favourites`);
+    del.addEventListener("click", () => removeFavourite(fav.latitude, fav.longitude));
+
+    chip.appendChild(label);
+    chip.appendChild(del);
+    favouritesList.appendChild(chip);
+  });
+}
+
+saveFavBtn.addEventListener("click", () => {
+  if (currentLoadedLocation) {
+    addFavourite(currentLoadedLocation, currentLoadedAltitude);
+    saveFavBtn.textContent = "★ Saved";
+    setTimeout(() => { saveFavBtn.textContent = "☆ Save"; }, 1500);
+  }
+});
+
+renderFavourites();
 
 // ---------------------------------------------------------------------------
 // Utilities
@@ -432,7 +508,6 @@ async function loadWeather(event) {
     const params = new URLSearchParams({
       latitude: String(location.latitude),
       longitude: String(location.longitude),
-      current: "temperature_2m,apparent_temperature,precipitation,wind_speed_10m,wind_direction_10m",
       hourly: "temperature_2m,apparent_temperature,precipitation,precipitation_probability,wind_speed_10m,wind_direction_10m,wind_gusts_10m",
       daily: "temperature_2m_max,temperature_2m_min,apparent_temperature_max,apparent_temperature_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,wind_gusts_10m_max,sunrise,sunset,daylight_duration",
       timezone: "auto",
@@ -474,71 +549,15 @@ async function loadWeather(event) {
       };
     }
 
-    const current = weather.current;
     const daily = weather.daily;
     const hourly = weather.hourly;
 
+    currentLoadedLocation = location;
+    currentLoadedAltitude = altitude;
+    saveFavBtn.textContent = "☆ Save";
+
     document.getElementById("result-location").textContent =
       `${location.name} (${location.latitude.toFixed(2)}, ${location.longitude.toFixed(2)}) @ ${altitude} m`;
-
-    document.getElementById("temp-current").textContent = `${current.temperature_2m} °C`;
-    document.getElementById("temp-apparent").textContent = `${current.apparent_temperature} °C`;
-    document.getElementById("temp-range").textContent = `${daily.temperature_2m_min[0]} to ${daily.temperature_2m_max[0]} °C`;
-
-    document.getElementById("precip-current").textContent = `${current.precipitation} mm`;
-    document.getElementById("precip-total").textContent = `${daily.precipitation_sum[0]} mm`;
-    document.getElementById("precip-prob").textContent = `${daily.precipitation_probability_max?.[0] ?? "N/A"} %`;
-
-    document.getElementById("wind-speed").textContent = `${current.wind_speed_10m} km/h`;
-    document.getElementById("wind-direction").textContent = `${current.wind_direction_10m}°`;
-    document.getElementById("wind-gust").textContent = `${daily.wind_gusts_10m_max[0]} km/h`;
-
-    document.getElementById("sunrise").textContent = toTime(daily.sunrise[0]);
-    document.getElementById("sunset").textContent = toTime(daily.sunset[0]);
-    document.getElementById("sun-hours").textContent = toHours(daily.daylight_duration[0]);
-
-    const tempSpread = (daily.temperature_2m_max[0] - daily.temperature_2m_min[0]).toFixed(1);
-    const windSpread = (daily.wind_gusts_10m_max[0] - current.wind_speed_10m).toFixed(1);
-
-    if (ensembleHourly) {
-      const todayStr = daily.time[0];
-      const ensIdx = ensembleHourly.time
-        .map((t, i) => (t.startsWith(todayStr) ? i : -1))
-        .filter((i) => i >= 0);
-
-      if (ensIdx.length && ensembleHourly.temperature) {
-        const p2_5 = Math.min(...ensIdx.map((i) => ensembleHourly.temperature.low[i]).filter(Number.isFinite));
-        const p97_5 = Math.max(...ensIdx.map((i) => ensembleHourly.temperature.high[i]).filter(Number.isFinite));
-        document.getElementById("uncertainty-temp").textContent =
-          `${p2_5.toFixed(1)}–${p97_5.toFixed(1)} °C (2.5th–97.5th percentile)`;
-      } else {
-        document.getElementById("uncertainty-temp").textContent = `${tempSpread} °C spread (daily min/max)`;
-      }
-
-      if (ensIdx.length && ensembleHourly.precipitation) {
-        const p2_5 = Math.min(...ensIdx.map((i) => ensembleHourly.precipitation.low[i]).filter(Number.isFinite));
-        const p97_5 = Math.max(...ensIdx.map((i) => ensembleHourly.precipitation.high[i]).filter(Number.isFinite));
-        document.getElementById("uncertainty-precip").textContent =
-          `${p2_5.toFixed(1)}–${p97_5.toFixed(1)} mm (2.5th–97.5th percentile)`;
-      } else {
-        document.getElementById("uncertainty-precip").textContent =
-          `${daily.precipitation_probability_max?.[0] ?? "N/A"}% chance of measurable precipitation`;
-      }
-
-      if (ensIdx.length && ensembleHourly.wind) {
-        const p2_5 = Math.min(...ensIdx.map((i) => ensembleHourly.wind.low[i]).filter(Number.isFinite));
-        const p97_5 = Math.max(...ensIdx.map((i) => ensembleHourly.wind.high[i]).filter(Number.isFinite));
-        document.getElementById("uncertainty-wind").textContent =
-          `${p2_5.toFixed(1)}–${p97_5.toFixed(1)} km/h (2.5th–97.5th percentile)`;
-      } else {
-        document.getElementById("uncertainty-wind").textContent = `${windSpread} km/h possible change to gust peak`;
-      }
-    } else {
-      document.getElementById("uncertainty-temp").textContent = `${tempSpread} °C spread (daily min/max)`;
-      document.getElementById("uncertainty-precip").textContent =
-        `${daily.precipitation_probability_max?.[0] ?? "N/A"}% chance of measurable precipitation`;
-      document.getElementById("uncertainty-wind").textContent = `${windSpread} km/h possible change to gust peak`;
-    }
 
     setStatus("Weather loaded.");
     results.hidden = false;
