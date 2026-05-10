@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Weather God</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app">
+      <h1>Weather God</h1>
+      <p class="subtitle">Detailed weather dashboard for temperature, precipitation, wind, and sun data.</p>
+
+      <form id="weather-form" class="controls" aria-label="Weather controls">
+        <label>
+          Location
+          <select id="location-select" name="location">
+            <option value="52.52,13.405,Berlin">Berlin, Germany</option>
+            <option value="47.3769,8.5417,Zurich">Zurich, Switzerland</option>
+            <option value="40.7128,-74.006,New York">New York, USA</option>
+            <option value="35.6762,139.6503,Tokyo">Tokyo, Japan</option>
+            <option value="-33.8688,151.2093,Sydney">Sydney, Australia</option>
+          </select>
+        </label>
+
+        <label>
+          Or search location
+          <input id="location-query" name="location-query" type="text" placeholder="Type city name" />
+        </label>
+
+        <label>
+          Model altitude (meters)
+          <input id="altitude" name="altitude" type="number" min="-430" max="8849" step="1" value="0" />
+        </label>
+
+        <button type="submit">Load weather</button>
+      </form>
+
+      <p id="status" class="status" role="status" aria-live="polite"></p>
+
+      <section id="results" class="results" hidden>
+        <h2 id="result-location"></h2>
+        <div class="cards">
+          <article class="card">
+            <h3>Temperature</h3>
+            <p><strong>Current:</strong> <span id="temp-current">-</span></p>
+            <p><strong>Feels like:</strong> <span id="temp-apparent">-</span></p>
+            <p><strong>Daily range:</strong> <span id="temp-range">-</span></p>
+          </article>
+
+          <article class="card">
+            <h3>Precipitation</h3>
+            <p><strong>Current rain/snow:</strong> <span id="precip-current">-</span></p>
+            <p><strong>Daily total:</strong> <span id="precip-total">-</span></p>
+            <p><strong>Max probability:</strong> <span id="precip-prob">-</span></p>
+          </article>
+
+          <article class="card">
+            <h3>Wind</h3>
+            <p><strong>Current speed:</strong> <span id="wind-speed">-</span></p>
+            <p><strong>Direction:</strong> <span id="wind-direction">-</span></p>
+            <p><strong>Daily max gust:</strong> <span id="wind-gust">-</span></p>
+          </article>
+
+          <article class="card">
+            <h3>Sun</h3>
+            <p><strong>Sunrise:</strong> <span id="sunrise">-</span></p>
+            <p><strong>Sunset:</strong> <span id="sunset">-</span></p>
+            <p><strong>Daylight duration:</strong> <span id="sun-hours">-</span></p>
+          </article>
+        </div>
+
+        <article class="card uncertainty">
+          <h3>Uncertainty & confidence hints</h3>
+          <ul>
+            <li>Temperature spread (daily min/max): <span id="uncertainty-temp">-</span></li>
+            <li>Precipitation probability reflects forecast confidence: <span id="uncertainty-precip">-</span></li>
+            <li>Wind variability (max gust vs current speed): <span id="uncertainty-wind">-</span></li>
+          </ul>
+        </article>
+      </section>
+    </main>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
