@@ -94,6 +94,17 @@ saveFavBtn.addEventListener("click", () => {
 
 renderFavourites();
 
+// Auto-load the first favourite on startup if any exist
+(function autoLoadFirstFavourite() {
+  const favs = getFavourites();
+  if (!favs.length) return;
+  const fav = favs[0];
+  selectedLocation = { latitude: fav.latitude, longitude: fav.longitude, name: fav.name };
+  locationQueryInput.value = fav.name;
+  document.getElementById("altitude").value = String(fav.altitude);
+  form.requestSubmit();
+})();
+
 // ---------------------------------------------------------------------------
 // Utilities
 // ---------------------------------------------------------------------------
@@ -174,13 +185,10 @@ locationQueryInput.addEventListener("keydown", (e) => {
   if (e.key === "ArrowDown") autocompleteList.querySelector("li")?.focus();
 });
 
-async function resolveLocation(query, fallbackValue) {
+async function resolveLocation(query) {
   if (selectedLocation) return selectedLocation;
   const trimmed = query.trim();
-  if (!trimmed) {
-    const parts = fallbackValue.split(",");
-    return { latitude: Number(parts[0]), longitude: Number(parts[1]), name: parts.slice(2).join(",") };
-  }
+  if (!trimmed) throw new Error("Please enter a location");
   const items = await fetchSuggestions(trimmed);
   if (!items.length) throw new Error("No matching location found");
   const first = items[0];
@@ -498,12 +506,11 @@ async function loadWeather(event) {
   results.hidden = true;
 
   const data = new FormData(form);
-  const selected = data.get("location");
   const query = data.get("location-query") || "";
   const altitude = Number(data.get("altitude"));
 
   try {
-    const location = await resolveLocation(query, selected);
+    const location = await resolveLocation(query);
 
     const params = new URLSearchParams({
       latitude: String(location.latitude),
