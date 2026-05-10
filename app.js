@@ -124,22 +124,23 @@ function computePercentile(sorted, p) {
   return lo === hi ? sorted[lo] : sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo);
 }
 
-// Returns { low: [...], high: [...] } where each entry is the 2.5th / 97.5th
-// percentile across all ensemble members at that time step.
+// Returns { low: [...], mid: [...], high: [...] } where each entry is the
+// 2.5th / 50th / 97.5th percentile across all ensemble members at that time step.
 function extractEnsembleBands(ensembleHourly, variable) {
   const memberKeys = Object.keys(ensembleHourly).filter((k) => k.startsWith(variable + "_member"));
   if (!memberKeys.length) return null;
   const n = ensembleHourly[memberKeys[0]].length;
-  const low = [], high = [];
+  const low = [], mid = [], high = [];
   for (let i = 0; i < n; i++) {
     const vals = memberKeys
       .map((k) => ensembleHourly[k][i])
       .filter(Number.isFinite)
       .sort((a, b) => a - b);
     low.push(vals.length ? computePercentile(vals, 2.5) : null);
+    mid.push(vals.length ? computePercentile(vals, 50) : null);
     high.push(vals.length ? computePercentile(vals, 97.5) : null);
   }
-  return { low, high };
+  return { low, mid, high };
 }
 
 // ---------------------------------------------------------------------------
@@ -274,6 +275,7 @@ function renderHourlyCharts(hourly, dateStr, ensembleHourly = null) {
     if (!ensIdx.length) return null;
     return {
       low: ensIdx.map((i) => bands.low[i]),
+      mid: ensIdx.map((i) => bands.mid[i]),
       high: ensIdx.map((i) => bands.high[i]),
     };
   };
@@ -294,39 +296,45 @@ function renderHourlyCharts(hourly, dateStr, ensembleHourly = null) {
 
   addChart(makeSVGChart({
     labels: hours,
-    mainSeries: { values: temp, color: "#fb923c" },
+    mainSeries: tempBand
+      ? { values: tempBand.mid, color: "#fb923c" }
+      : { values: temp, color: "#fb923c" },
     bandSeries: tempBand
       ? { ...tempBand, color: "#fb923c" }
       : { low: temp.map((t, i) => Math.min(t, apparent[i])), high: temp.map((t, i) => Math.max(t, apparent[i])), color: "#fb923c" },
     unit: "°C",
     title: tempBand
-      ? "Temperature °C  (line = forecast, band = 2.5th–97.5th percentile ensemble)"
+      ? "Temperature °C  (line = 50th percentile, band = 2.5th–97.5th percentile ensemble)"
       : "Temperature °C  (line = actual, band = actual–apparent range)",
   }));
 
   addChart(makeSVGChart({
     labels: hours,
     barSeries: { values: precip, probabilities: precipProb, color: "#38bdf8" },
-    mainSeries: { values: precip.map((p, i) => p * ((precipProb[i] ?? 100) / 100)), color: "#38bdf8" },
+    mainSeries: precipBand
+      ? { values: precipBand.mid, color: "#38bdf8" }
+      : { values: precip.map((p, i) => p * ((precipProb[i] ?? 100) / 100)), color: "#38bdf8" },
     bandSeries: precipBand
       ? { ...precipBand, color: "#38bdf8" }
       : { low: precip.map(() => 0), high: precip, color: "#38bdf8" },
     unit: "mm",
     title: precipBand
-      ? "Precipitation mm  (line = expected value, band = 2.5th–97.5th percentile ensemble)"
+      ? "Precipitation mm  (line = 50th percentile, band = 2.5th–97.5th percentile ensemble)"
       : "Precipitation mm  (line = expected value, band = confidence interval, bar opacity = probability %)",
     zeroBaseline: true,
   }));
 
   addChart(makeSVGChart({
     labels: hours,
-    mainSeries: { values: wind, color: "#a78bfa" },
+    mainSeries: windBand
+      ? { values: windBand.mid, color: "#a78bfa" }
+      : { values: wind, color: "#a78bfa" },
     bandSeries: windBand
       ? { ...windBand, color: "#a78bfa" }
       : { low: wind, high: gusts, color: "#a78bfa" },
     unit: "km/h",
     title: windBand
-      ? "Wind km/h  (line = forecast speed, band = 2.5th–97.5th percentile ensemble)"
+      ? "Wind km/h  (line = 50th percentile, band = 2.5th–97.5th percentile ensemble)"
       : "Wind km/h  (line = midpoint of speed & gust, band = speed–gust range)",
   }));
 }
