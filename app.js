@@ -105,4 +105,3 @@ async function loadWeather(event) {
 }
 
 form.addEventListener("submit", loadWeather);
-form.requestSubmit();

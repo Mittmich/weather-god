@@ -20,7 +20,7 @@ Detailed weather dashboard deployed as a static GitHub Pages site.
 
 ## GitHub Pages deployment
 
-A workflow is included at `/home/runner/work/weather-god/weather-god/.github/workflows/deploy-pages.yml`.
+A workflow is included at `.github/workflows/deploy-pages.yml`.
 
 To publish:
 
