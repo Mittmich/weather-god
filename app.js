@@ -1,3 +1,10 @@
+// Precipitation probability colour thresholds for the 7-day forecast
+const PRECIP_PROB_HIGH = 70;
+const PRECIP_PROB_MEDIUM = 40;
+const PRECIP_COLOR_HIGH = "#38bdf8";
+const PRECIP_COLOR_MEDIUM = "#7dd3fc";
+const PRECIP_COLOR_LOW = "#64748b";
+
 const WEATHER_API = "https://api.open-meteo.com/v1/forecast";
 const GEOCODE_API = "https://geocoding-api.open-meteo.com/v1/search";
 
@@ -29,8 +36,8 @@ function toHours(seconds) {
 }
 
 function formatDate(isoDateStr, short = false) {
-  // Append noon to avoid day-boundary timezone shifts
-  const date = new Date(isoDateStr + "T12:00:00");
+  // Use noon UTC to avoid day-boundary shifts across all timezones
+  const date = new Date(isoDateStr + "T12:00:00Z");
   return new Intl.DateTimeFormat([], short
     ? { weekday: "short", day: "numeric" }
     : { weekday: "short", month: "short", day: "numeric" }
@@ -244,7 +251,7 @@ function renderHourlyCharts(hourly, dateStr) {
       color: "#fb923c",
     },
     unit: "°C",
-    title: "Temperature °C  (shaded band = apparent-temperature confidence interval)",
+    title: "Temperature °C  (shaded band = actual vs. apparent temperature range)",
   }));
 
   addChart(makeSVGChart({
@@ -311,7 +318,7 @@ function renderForecast(daily) {
 
     const barLeft = ((tmin - absMin) / absRange * 100).toFixed(1);
     const barWidth = ((tmax - tmin) / absRange * 100).toFixed(1);
-    const probColor = precipProb >= 70 ? "#38bdf8" : precipProb >= 40 ? "#7dd3fc" : "#64748b";
+    const probColor = precipProb >= PRECIP_PROB_HIGH ? PRECIP_COLOR_HIGH : precipProb >= PRECIP_PROB_MEDIUM ? PRECIP_COLOR_MEDIUM : PRECIP_COLOR_LOW;
 
     const card = document.createElement("article");
     card.className = "forecast-card";
@@ -319,7 +326,7 @@ function renderForecast(daily) {
       <div class="fc-date">${formatDate(dateStr)}</div>
       <div class="fc-temp">
         <span class="fc-tmin">${tmin.toFixed(1)}°</span>
-        <div class="fc-bar-track" title="Temperature confidence interval: ${tmin.toFixed(1)}° – ${tmax.toFixed(1)}°C">
+        <div class="fc-bar-track" title="Daily temperature range: ${tmin.toFixed(1)}° – ${tmax.toFixed(1)}°C">
           <div class="fc-bar" style="left:${barLeft}%;width:${barWidth}%"></div>
         </div>
         <span class="fc-tmax">${tmax.toFixed(1)}°</span>
