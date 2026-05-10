@@ -30,7 +30,7 @@ let currentLoadedAltitude = 0;
 const FAV_KEY = "weather-god-favourites";
 
 function getFavourites() {
-  try { return JSON.parse(localStorage.getItem(FAV_KEY)) ?? []; } catch { return []; }
+  try { return JSON.parse(localStorage.getItem(FAV_KEY)) ?? []; } catch (e) { console.error("Failed to read favourites:", e); return []; }
 }
 
 function saveFavourites(favs) {
@@ -38,14 +38,16 @@ function saveFavourites(favs) {
 }
 
 function addFavourite(location, altitude) {
-  const favs = getFavourites().filter((f) => f.name !== location.name);
+  const key = `${location.latitude},${location.longitude}`;
+  const favs = getFavourites().filter((f) => `${f.latitude},${f.longitude}` !== key);
   favs.unshift({ name: location.name, latitude: location.latitude, longitude: location.longitude, altitude });
   saveFavourites(favs);
   renderFavourites();
 }
 
-function removeFavourite(name) {
-  saveFavourites(getFavourites().filter((f) => f.name !== name));
+function removeFavourite(latitude, longitude) {
+  const key = `${latitude},${longitude}`;
+  saveFavourites(getFavourites().filter((f) => `${f.latitude},${f.longitude}` !== key));
   renderFavourites();
 }
 
@@ -74,7 +76,7 @@ function renderFavourites() {
     del.className = "fav-chip-del";
     del.textContent = "×";
     del.setAttribute("aria-label", `Remove ${fav.name} from favourites`);
-    del.addEventListener("click", () => removeFavourite(fav.name));
+    del.addEventListener("click", () => removeFavourite(fav.latitude, fav.longitude));
 
     chip.appendChild(label);
     chip.appendChild(del);
