@@ -22,6 +22,7 @@ let selectedLocation = null;
 let debounceTimer = null;
 let currentLoadedLocation = null;
 let currentLoadedAltitude = 0;
+let loadingAbortController = null;
 
 // ---------------------------------------------------------------------------
 // Favourites (localStorage)
@@ -502,6 +503,12 @@ function renderForecast(daily) {
 
 async function loadWeather(event) {
   event.preventDefault();
+
+  // Cancel any previous in-flight request so stale responses are ignored.
+  if (loadingAbortController) loadingAbortController.abort();
+  loadingAbortController = new AbortController();
+  const { signal } = loadingAbortController;
+
   setStatus("Loading weather...");
   results.hidden = true;
 
@@ -525,36 +532,10 @@ async function loadWeather(event) {
       params.set("elevation", String(altitude));
     }
 
-    const ensParams = new URLSearchParams({
-      latitude: String(location.latitude),
-      longitude: String(location.longitude),
-      hourly: "temperature_2m,precipitation,wind_speed_10m",
-      timezone: "auto",
-      forecast_days: "7",
-    });
-
-    if (Number.isFinite(altitude)) {
-      ensParams.set("elevation", String(altitude));
-    }
-
-    const [response, ensResponse] = await Promise.all([
-      fetch(`${WEATHER_API}?${params.toString()}`),
-      fetch(`${ENSEMBLE_API}?${ensParams.toString()}`),
-    ]);
+    // Fetch and render main weather data immediately — don't wait for ensemble.
+    const response = await fetch(`${WEATHER_API}?${params.toString()}`, { signal });
     if (!response.ok) throw new Error("Weather service is unavailable");
     const weather = await response.json();
-
-    let ensembleHourly = null;
-    if (ensResponse.ok) {
-      const ensData = await ensResponse.json();
-      const eh = ensData.hourly;
-      ensembleHourly = {
-        time: eh.time,
-        temperature: extractEnsembleBands(eh, "temperature_2m"),
-        precipitation: extractEnsembleBands(eh, "precipitation"),
-        wind: extractEnsembleBands(eh, "wind_speed_10m"),
-      };
-    }
 
     const daily = weather.daily;
     const hourly = weather.hourly;
@@ -569,10 +550,56 @@ async function loadWeather(event) {
     setStatus("Weather loaded.");
     results.hidden = false;
 
-    buildDaySelector(daily, hourly, ensembleHourly);
-    renderHourlyCharts(hourly, daily.time[0], ensembleHourly);
+    buildDaySelector(daily, hourly, null);
+    renderHourlyCharts(hourly, daily.time[0], null);
     renderForecast(daily);
+
+    // Fetch ensemble data in the background and update charts when ready.
+    const ensParams = new URLSearchParams({
+      latitude: String(location.latitude),
+      longitude: String(location.longitude),
+      hourly: "temperature_2m,precipitation,wind_speed_10m",
+      timezone: "auto",
+      forecast_days: "7",
+    });
+
+    if (Number.isFinite(altitude)) {
+      ensParams.set("elevation", String(altitude));
+    }
+
+    try {
+      const ensResponse = await fetch(`${ENSEMBLE_API}?${ensParams.toString()}`, { signal });
+      if (!ensResponse.ok) return;
+      const ensData = await ensResponse.json();
+
+      const eh = ensData.hourly;
+      const ensembleHourly = {
+        time: eh.time,
+        temperature: extractEnsembleBands(eh, "temperature_2m"),
+        precipitation: extractEnsembleBands(eh, "precipitation"),
+        wind: extractEnsembleBands(eh, "wind_speed_10m"),
+      };
+
+      // Preserve the day the user may have selected while ensemble was loading.
+      const daySelector = document.getElementById("day-selector");
+      const dayBtns = Array.from(daySelector.querySelectorAll(".day-btn"));
+      const activeIdx = dayBtns.findIndex((btn) => btn.classList.contains("active"));
+      const activeDateStr = daily.time[activeIdx >= 0 ? activeIdx : 0];
+
+      buildDaySelector(daily, hourly, ensembleHourly);
+
+      // Restore the previously active day after the selector is rebuilt.
+      daySelector.querySelectorAll(".day-btn").forEach((btn, idx) => {
+        btn.classList.toggle("active", daily.time[idx] === activeDateStr);
+      });
+
+      renderHourlyCharts(hourly, activeDateStr, ensembleHourly);
+    } catch (ensError) {
+      if (ensError.name !== "AbortError") console.warn("Ensemble data unavailable:", ensError);
+      // Non-ensemble display remains.
+    }
   } catch (error) {
+    if (error.name === "AbortError") return;
     setStatus(error instanceof Error ? error.message : "Unexpected weather loading error", true);
   }
 }
