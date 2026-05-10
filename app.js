@@ -93,6 +93,8 @@ saveFavBtn.addEventListener("click", () => {
   }
 });
 
+form.addEventListener("submit", loadWeather);
+
 renderFavourites();
 
 // Auto-load the first favourite on startup if any exist
@@ -603,5 +605,3 @@ async function loadWeather(event) {
     setStatus(error instanceof Error ? error.message : "Unexpected weather loading error", true);
   }
 }
-
-form.addEventListener("submit", loadWeather);
