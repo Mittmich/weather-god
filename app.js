@@ -353,6 +353,8 @@ function renderHourlyCharts(hourly, dateStr, ensembleHourly = null) {
   const precipProb = get("precipitation_probability");
   const wind = get("wind_speed_10m");
   const gusts = get("wind_gusts_10m");
+  const sunshineSec = get("sunshine_duration");
+  const sunshineMin = sunshineSec.map((v) => (v != null ? v / 60 : null));
 
   // Map ensemble bands to the same day's indices using the ensemble time array.
   const ensembleBandFor = (bands) => {
@@ -423,6 +425,15 @@ function renderHourlyCharts(hourly, dateStr, ensembleHourly = null) {
     title: windBand
       ? "Wind km/h  (line = 50th percentile, band = 2.5th–97.5th percentile ensemble)"
       : "Wind km/h  (line = midpoint of speed & gust, band = speed–gust range)",
+  }));
+
+  addChart(makeSVGChart({
+    labels: hours,
+    barSeries: { values: sunshineMin, color: "#fbbf24" },
+    mainSeries: { values: sunshineMin, color: "#fbbf24" },
+    unit: "min",
+    title: "Sunshine min/h  (sunshine duration per hour)",
+    zeroBaseline: true,
   }));
 }
 
@@ -524,7 +535,7 @@ async function loadWeather(event) {
     const params = new URLSearchParams({
       latitude: String(location.latitude),
       longitude: String(location.longitude),
-      hourly: "temperature_2m,apparent_temperature,precipitation,precipitation_probability,wind_speed_10m,wind_direction_10m,wind_gusts_10m",
+      hourly: "temperature_2m,apparent_temperature,precipitation,precipitation_probability,wind_speed_10m,wind_direction_10m,wind_gusts_10m,sunshine_duration",
       daily: "temperature_2m_max,temperature_2m_min,apparent_temperature_max,apparent_temperature_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,wind_gusts_10m_max,sunrise,sunset,daylight_duration",
       timezone: "auto",
       forecast_days: "7",
