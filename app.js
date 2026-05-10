@@ -247,30 +247,32 @@ function renderHourlyCharts(hourly, dateStr) {
 
   addChart(makeSVGChart({
     labels: hours,
-    mainSeries: { values: temp, color: "#fb923c" },
+    mainSeries: { values: temp.map((t, i) => (t + apparent[i]) / 2), color: "#fb923c" },
     bandSeries: {
       low: temp.map((t, i) => Math.min(t, apparent[i])),
       high: temp.map((t, i) => Math.max(t, apparent[i])),
       color: "#fb923c",
     },
     unit: "°C",
-    title: "Temperature °C  (shaded band = actual vs. apparent temperature range)",
+    title: "Temperature °C  (line = mean of actual & apparent, band = full range)",
   }));
 
   addChart(makeSVGChart({
     labels: hours,
     barSeries: { values: precip, probabilities: precipProb, color: "#38bdf8" },
+    mainSeries: { values: precip.map((p, i) => p * ((precipProb[i] ?? 100) / 100)), color: "#38bdf8" },
+    bandSeries: { low: precip.map(() => 0), high: precip, color: "#38bdf8" },
     unit: "mm",
-    title: "Precipitation mm  (bar opacity = forecast probability %)",
+    title: "Precipitation mm  (line = expected value, band = confidence interval, bar opacity = probability %)",
     zeroBaseline: true,
   }));
 
   addChart(makeSVGChart({
     labels: hours,
-    mainSeries: { values: wind, color: "#a78bfa" },
+    mainSeries: { values: wind.map((w, i) => (w + gusts[i]) / 2), color: "#a78bfa" },
     bandSeries: { low: wind, high: gusts, color: "#a78bfa" },
     unit: "km/h",
-    title: "Wind km/h  (shaded band = gust confidence interval)",
+    title: "Wind km/h  (line = midpoint of speed & gust, band = speed–gust range)",
   }));
 }
 
