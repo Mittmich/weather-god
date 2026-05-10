@@ -58,6 +58,55 @@ button {
   color: #38bdf8;
 }
 
+/* ---------------------------------------------------------------------------
+   Autocomplete
+--------------------------------------------------------------------------- */
+
+.autocomplete-wrapper {
+  position: relative;
+}
+
+.autocomplete-list {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 0;
+  right: 0;
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0.25rem 0;
+  z-index: 200;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.autocomplete-list li {
+  padding: 0.45rem 0.7rem;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.autocomplete-list li:hover,
+.autocomplete-list li:focus {
+  background: #273548;
+  outline: none;
+}
+
+.ac-main {
+  color: #e2e8f0;
+}
+
+.ac-sub {
+  color: #94a3b8;
+  font-size: 0.85em;
+}
+
+/* ---------------------------------------------------------------------------
+   Cards (current conditions)
+--------------------------------------------------------------------------- */
+
 .cards {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
@@ -78,4 +127,171 @@ button {
 .uncertainty ul {
   margin: 0;
   padding-left: 1rem;
+}
+
+/* ---------------------------------------------------------------------------
+   Section headers / titles
+--------------------------------------------------------------------------- */
+
+.section-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin: 1.75rem 0 0.6rem;
+}
+
+.section-header h3 {
+  margin: 0;
+  color: #94a3b8;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.section-title {
+  margin: 1.75rem 0 0.6rem;
+  color: #94a3b8;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+/* ---------------------------------------------------------------------------
+   Day selector buttons
+--------------------------------------------------------------------------- */
+
+.day-selector {
+  display: flex;
+  gap: 0.3rem;
+  flex-wrap: wrap;
+}
+
+.day-btn {
+  padding: 0.25rem 0.55rem;
+  font-size: 0.78rem;
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  color: #94a3b8;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.day-btn.active {
+  background: #0ea5e9;
+  border-color: #0284c7;
+  color: #082f49;
+  font-weight: 700;
+}
+
+.day-btn:hover:not(.active) {
+  background: #273548;
+  color: #e2e8f0;
+}
+
+/* ---------------------------------------------------------------------------
+   Hourly charts
+--------------------------------------------------------------------------- */
+
+.hourly-charts {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.chart-card {
+  background: #111827;
+  border: 1px solid #334155;
+  border-radius: 10px;
+  padding: 0.65rem 0.75rem;
+  overflow: hidden;
+}
+
+.chart-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* ---------------------------------------------------------------------------
+   7-day forecast
+--------------------------------------------------------------------------- */
+
+.forecast-days {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.forecast-card {
+  background: #111827;
+  border: 1px solid #334155;
+  border-radius: 10px;
+  padding: 0.65rem 0.9rem;
+  display: grid;
+  grid-template-columns: 100px 1fr auto;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+}
+
+@media (max-width: 540px) {
+  .forecast-card {
+    grid-template-columns: 1fr;
+  }
+}
+
+.fc-date {
+  font-size: 0.85rem;
+  color: #94a3b8;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.fc-temp {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.fc-tmin {
+  color: #7dd3fc;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.fc-tmax {
+  color: #fb923c;
+  font-size: 0.85rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.fc-bar-track {
+  flex: 1;
+  height: 6px;
+  background: #1e293b;
+  border-radius: 3px;
+  position: relative;
+  min-width: 50px;
+}
+
+.fc-bar {
+  position: absolute;
+  height: 100%;
+  background: linear-gradient(90deg, #38bdf8, #fb923c);
+  border-radius: 3px;
+}
+
+.fc-details {
+  display: flex;
+  gap: 0.65rem;
+  font-size: 0.78rem;
+  color: #94a3b8;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.fc-ci {
+  font-size: 0.72em;
+  opacity: 0.85;
+  margin-left: 0.2em;
 }
